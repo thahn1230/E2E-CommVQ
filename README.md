@@ -2,8 +2,25 @@
 
 [[Paper](https://arxiv.org/abs/xxxx.xxxxx)] [[Hugging Face Models](https://huggingface.co/collections/senfu/commvq-68412ebc14e0f9cdfffb7172)]
 
-This repository contains the official implementation of **CommVQ**, a lightweight and non-invasive method for compressing the KV cache of large language models (LLMs).  
-CommVQ enables **memory-efficient** and **long-context** inference without modifying the model architecture, while maintaining strong performance across a variety of benchmarks.
+This repository contains the official implementation of **CommVQ**. It enables **memory-efficient** and **long-context** inference without modifying the model architecture, while maintaining strong performance across a variety of benchmarks.
+
+## Table of Contents
+
+- [News](#news)
+- [Model Checkpoints](#model-checkpoints)
+- [Installation](#installation)
+- [Training](#training)
+- [Evaluation](#evaluation)
+  - [Longbench](#longbench)
+  - [Infinitebench](#infinitebench)
+  - [NIAH](#niah)
+- [Memory Measurement](#memory-measurement)
+- [Citation](#citation)
+
+## News
+
+- **[June, 2025]**: Released code and model weights.
+- **[May, 2025]**: CommVQ is accepted to **ICML 2025**! See you in Vancouver, BC.
 
 ## Model Checkpoints
 
