@@ -9,7 +9,8 @@ import os
 import glob
 
 import json
-from transformers import AutoModelForCausalLM, AutoTokenizer
+from commvq.modeling_llama_triton import LlamaForCausalLM
+from transformers import AutoTokenizer
 import numpy as np
 import argparse
 from rouge_score import rouge_scorer
@@ -28,13 +29,12 @@ import logging
 logging.disable(logging.CRITICAL)
 
 
-BATCH_SIZE = 2048
-REAL_LENGTH = 1024 * 1
+BATCH_SIZE = 1
+REAL_LENGTH = 20000
 
 
 
 CONTEXT_LENGTH = REAL_LENGTH + 100
-GENERATE_LENGTH = 100
 
 scorer = rouge_scorer.RougeScorer(['rouge1', 'rougeL'], use_stemmer=True)
 
@@ -60,10 +60,10 @@ class LLMNeedleHaystackTester:
                  haystack_dir="data/longer", # PaulGrahamEssays  
                  retrieval_question="What is the best thing to do in San Francisco?", 
                  results_version = 1,
-                 context_lengths_min = 1000,
-                 context_lengths_max = None,
+                 context_lengths_min = 100000,
+                 context_lengths_max = 128000,
                  context_lengths_num_intervals = 40,
-                 context_lengths = None,
+                 context_lengths = 128000,
                  document_depth_percent_min = 0,
                  document_depth_percent_max = 100,
                  document_depth_percent_intervals = 10,
@@ -155,35 +155,11 @@ class LLMNeedleHaystackTester:
             raise ValueError("document_depth_percent_interval_type must be either None, 'linear' or 'sigmoid'. If you'd like your own distribution give a list of ints in via document_depth_percent_intervals")
         
         self.model_name = model_name
-
-        # KIVI
-        # from models.llama_kivi import LlamaForCausalLM_KIVI
-        # from transformers import LlamaConfig
-        # config = LlamaConfig.from_pretrained(model_name)
-        # config.k_bits = 2 # current support 2/4 bit for KV Cache
-        # config.v_bits = 2 # current support 2/4 bit for KV Cache
-        # config.group_size = 32
-        # config.residual_length = 128 # the number of recent fp16 tokens
-        # model = LlamaForCausalLM_KIVI.from_pretrained(
-        #     pretrained_model_name_or_path=model_name,
-        #     config=config,
-        #     torch_dtype=torch.float16,
-        #     attn_implementation="flash_attention_2",
-        #     device_map="auto",
-        # )
-        # tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
-        # self.enc = tokenizer
-        # self.model_to_test = model
-
-
-
-
         self.enc = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
         # self.enc.add_special_tokens({'pad_token': '[PAD]'})
         print("loading from %s" % model_name)
-
         # [OPTION]
-        self.model_to_test = AutoModelForCausalLM.from_pretrained(model_name,
+        self.model_to_test = LlamaForCausalLM.from_pretrained(model_name,
                                                                     torch_dtype=torch.bfloat16,
                                                                     low_cpu_mem_usage=True,
                                                                     device_map="cuda:0",
@@ -209,7 +185,6 @@ class LLMNeedleHaystackTester:
         context_tokens = self.get_tokens_from_context(context)
 
         # [OPTION]
-        # context_length = 16384
         context_length = CONTEXT_LENGTH
         depth_percent = 50
         # Go generate the required length context and place your needle statement in
@@ -269,7 +244,7 @@ class LLMNeedleHaystackTester:
         self.model_to_test.requires_grad_(False)
         gc.collect()
         torch.cuda.empty_cache()
-
+        print("Input shape: ", input_ids.shape)
 
 
         with torch.inference_mode():
@@ -278,54 +253,32 @@ class LLMNeedleHaystackTester:
         gc.collect()
         torch.cuda.empty_cache()
         next_token = repeat_tensor(next_token, BATCH_SIZE)
-        if "output" not in self.model_name:
-            past_key_values = list(output.past_key_values)
-            for i in range(len(past_key_values)):
-                key = past_key_values[i][0].cpu().clone()
-                value = past_key_values[i][1].cpu().clone()
-                past_key_values[i] = (
-                    repeat_tensor(key, BATCH_SIZE).cuda(),
-                    repeat_tensor(value, BATCH_SIZE).cuda(),
-                )
-            past_key_values = tuple(past_key_values)
-        else:
-            past_key_values = None
-            for i in range(len(self.model_to_test.model.layers)):
-                past_key_value = self.model_to_test.model.layers[i].self_attn.past_key_value
-                past_key_value["residual_key"]      = repeat_tensor(past_key_value["residual_key"], BATCH_SIZE)
-                past_key_value["residual_value"]    = repeat_tensor(past_key_value["residual_value"], BATCH_SIZE)
-                past_key_value["residual_key_rope"] = repeat_tensor(past_key_value["residual_key_rope"], BATCH_SIZE)
-                past_key_value["key"]["code"]       = repeat_tensor(past_key_value["key"]["code"], BATCH_SIZE)
-                past_key_value["key"]["prescale"]   = repeat_tensor(past_key_value["key"]["prescale"], BATCH_SIZE)
-                past_key_value["value"]["code"]     = repeat_tensor(past_key_value["value"]["code"], BATCH_SIZE)
-                past_key_value["value"]["prescale"] = repeat_tensor(past_key_value["value"]["prescale"], BATCH_SIZE)
-            for i in range(len(self.model_to_test.model.layers)):
-                self.model_to_test.model.layers[i].self_attn.move_infer_vars("cuda")
+        past_key_values = None
+        for i in range(len(self.model_to_test.model.layers)):
+            past_key_value = self.model_to_test.model.layers[i].self_attn.past_key_value
+            past_key_value["residual_key"]      = repeat_tensor(past_key_value["residual_key"], BATCH_SIZE)
+            past_key_value["residual_value"]    = repeat_tensor(past_key_value["residual_value"], BATCH_SIZE)
+            past_key_value["residual_key_rope"] = repeat_tensor(past_key_value["residual_key_rope"], BATCH_SIZE)
+            past_key_value["key"]["code"]       = repeat_tensor(past_key_value["key"]["code"], BATCH_SIZE)
+            past_key_value["key"]["prescale"]   = repeat_tensor(past_key_value["key"]["prescale"], BATCH_SIZE)
+            past_key_value["value"]["code"]     = repeat_tensor(past_key_value["value"]["code"], BATCH_SIZE)
+            past_key_value["value"]["prescale"] = repeat_tensor(past_key_value["value"]["prescale"], BATCH_SIZE)
+        for i in range(len(self.model_to_test.model.layers)):
+            self.model_to_test.model.layers[i].self_attn.move_infer_vars("cuda")
 
         gc.collect()
         torch.cuda.empty_cache()
         torch.cuda.reset_peak_memory_stats()
         print(next_token.shape)
 
-        N = 10
-        ts = []
+        N = 1
         for _ in trange(N):
-            torch.cuda.synchronize()
-            s_t = time.time()
             with torch.inference_mode():
                 output = self.model_to_test(next_token, return_dict=True, num_logits_to_keep=1, past_key_values=past_key_values)
             next_token2 = output.logits.argmax(-1)
-            torch.cuda.synchronize()
-            e_t = time.time()
-            ts.append(e_t - s_t)
-        ts = sorted(ts)
-        print(np.mean(ts[2:8]))
-        print(ts)
-        exit()
         mem_stat = torch.cuda.memory_stats()
         peak_mem_GB = mem_stat["allocated_bytes.all.peak"] / 1024 / 1024 / 1024
         print(f"Peak memory usage: {peak_mem_GB:.3f} GB")
-        print(self.enc.batch_decode(next_token2))
         exit()
 
 
@@ -413,7 +366,7 @@ class LLMNeedleHaystackTester:
 
     def read_context_files(self):
         context = ""
-        max_context_length = max(self.context_lengths)
+        max_context_length = 128000
 
         while self.get_context_length_in_tokens(context) < max_context_length:
             for file in glob.glob(f"{self.haystack_dir}/*.txt"):
@@ -444,34 +397,19 @@ class LLMNeedleHaystackTester:
     def get_results(self):
         return self.testing_results
     
-    def print_start_test_summary(self):
-        print ("\n")
-        print ("Starting Needle In A Haystack Testing...")
-        print (f"- Model: {self.model_name}")
-        print (f"- Context Lengths: {len(self.context_lengths)}, Min: {min(self.context_lengths)}, Max: {max(self.context_lengths)}")
-        print (f"- Document Depths: {len(self.document_depth_percents)}, Min: {min(self.document_depth_percents)}%, Max: {max(self.document_depth_percents)}%")
-        print (f"- Needle: {self.needle.strip()}")
-        print ("\n\n")
-
     def start_test(self, args):
-        if self.print_ongoing_status:
-            self.print_start_test_summary()
-        #asyncio.run(self.run_test())
         self.run_test(args)
 
 
 if __name__ == "__main__":
     # Tons of defaults set, check out the LLMNeedleHaystackTester's init for more info
     parser = argparse.ArgumentParser()
-    parser.add_argument('-s', '--s_len', metavar='N', type=int, help='a number')
-    parser.add_argument('-e', '--e_len', metavar='N', type=int, help='a number')
     parser.add_argument('--model_name', type=str, default=None, help='name of model')
     parser.add_argument("--attn_implementation", type=str,  default="flash_attention_2", choices=["flash_attention_2", "sdpa", "None"])
     parser.add_argument('--model_version', type=str, default=None, help='provider of model')
     parser.add_argument('--model_name_suffix', type=str, default=None, help='name of model')
     parser.add_argument('--model_provider', type=str, default="LLaMA", help='which model to use')
     parser.add_argument('--api_key', type=str, default="", help='OpenAI API Key')
-    parser.add_argument('--step', type=int, default=1000)
     args = parser.parse_args()
 
     
@@ -483,8 +421,6 @@ if __name__ == "__main__":
                                  save_contexts=True,
                                  save_results=True,
                                  openai_api_key=args.api_key, 
-                                 context_lengths_max=args.e_len, 
-                                 step=args.step, 
                                  attn_implementation=args.attn_implementation
                                  )
 
