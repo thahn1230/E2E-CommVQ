@@ -2,7 +2,7 @@
 
 [[Paper](https://arxiv.org/abs/xxxx.xxxxx)] [[Hugging Face Models](https://huggingface.co/collections/senfu/commvq-68412ebc14e0f9cdfffb7172)]
 
-This repository contains the official implementation of **CommVQ**. It enables **memory-efficient** and **long-context** inference without modifying the model architecture, while maintaining strong performance across a variety of benchmarks.
+This repository contains the official implementation of **CommVQ**. It enables **memory-efficient** and **long-context** inference with quantized KV cache using codebooks, while maintaining strong performance across a variety of benchmarks.
 
 ## Table of Contents
 
