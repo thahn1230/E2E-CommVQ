@@ -18,7 +18,8 @@ from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
 from accelerate.utils import DistributedType
 from datasets import load_dataset
 from trl import SFTConfig, SFTTrainer, DataCollatorForCompletionOnlyLM
-from taming.models.compress import KeyCompressor, ValueCompressor
+from commvq.compress_training import KeyCompressor, ValueCompressor
+from commvq.modeling_llama_training import LlamaForCausalLM
 import numpy as np
 import warnings
 warnings.filterwarnings("ignore")
@@ -237,7 +238,7 @@ def train():
     config.quant_bits = model_args.quant_bits
 
     # Load model and tokenizer
-    model = transformers.AutoModelForCausalLM.from_pretrained(
+    model = LlamaForCausalLM.from_pretrained(
         model_args.model_name_or_path,
         config=config,
         torch_dtype=torch.bfloat16,
@@ -245,18 +246,7 @@ def train():
     )
     if "output" not in model_args.model_name_or_path:
         if model_args.is_stage1:
-            if model_args.model_name_or_path == "togethercomputer/Llama-2-7B-32K-Instruct":
-                learnable_scale_values = torch.load("data/llama2-7b-32k/learnable_scale.pt", map_location="cpu")["value"]
-            elif model_args.model_name_or_path == "mistralai/Mistral-7B-Instruct-v0.3":
-                learnable_scale_values = torch.load("data/mistral_7b_v3_32k/learnable_scale.pt", map_location="cpu")["value"]
-            elif model_args.model_name_or_path == "meta-llama/Llama-3.1-70B-Instruct":
-                learnable_scale_values = torch.load("data/Llama-3.1-70B-Instruct/learnable_scale.pt", map_location="cpu")["value"]
-            elif model_args.model_name_or_path == "meta-llama/Llama-3.1-8B-Instruct":
-                learnable_scale_values = torch.load("learnable_scale_for_meta-llama_Llama-3.1-8B-Instruct.pt", map_location="cpu")["value"]
-            elif model_args.model_name_or_path == "Qwen/Qwen2.5-7B-Instruct":
-                learnable_scale_values = torch.load("data/Qwen2.5-7B-Instruct/learnable_scale.pt", map_location="cpu")["value"]
-            else:
-                raise NotImplementedError
+            learnable_scale_values = torch.load("data/learnable_scale.pt", map_location="cpu")["value"]
             for i in range(len(model.model.layers)):
                 feat_dim = model.config.hidden_size // model.config.num_attention_heads * model.config.num_key_value_heads
                 key_vq_model = KeyCompressor(feat_dim=feat_dim, layer_idx=i, quant_bits=config.quant_bits)
@@ -378,6 +368,7 @@ def train():
                 packing=False,
             )
     trainer.use_lora = lora_args.use_lora
+
     trainer.train(resume_from_checkpoint=training_args.resume_from_checkpoint)
     trainer.save_state()
 

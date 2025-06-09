@@ -46,7 +46,6 @@ class LLMNeedleHaystackTester:
                  anthropic_api_key = None,
                  model_name='',
                  model_name_suffix=None,
-                 model_version=None, 
                  num_concurrent_requests = 1,
                  save_results = True,
                  save_contexts = True,
@@ -98,10 +97,6 @@ class LLMNeedleHaystackTester:
         self.testing_results = []
         self.step = step
 
-
-        self.model_version = model_version
-        if(model_name_suffix is not None): self.model_version += "_" + model_name_suffix
-
         if context_lengths is None:
             if context_lengths_min is None or context_lengths_max is None or context_lengths_num_intervals is None:
                 raise ValueError("Either context_lengths_min, context_lengths_max, context_lengths_intervals need to be filled out OR the context_lengths_list needs to be supplied.")
@@ -110,8 +105,7 @@ class LLMNeedleHaystackTester:
                 self.context_lengths = np.arange(context_lengths_min, context_lengths_max+1, step=self.step)
         else:
             self.context_lengths = context_lengths
-        
-        self.context_lengths = [32000]
+
 
         if document_depth_percents is None:
             if document_depth_percent_min is None or document_depth_percent_max is None or document_depth_percent_intervals is None:
@@ -159,7 +153,7 @@ class LLMNeedleHaystackTester:
         self.model_to_test = AutoModelForCausalLM.from_pretrained(model_name,
                                                                     torch_dtype=torch.bfloat16,
                                                                     low_cpu_mem_usage=True,
-                                                                    device_map="auto",
+                                                                    device_map="cuda:0",
                                                                     use_cache=False, 
                                                                     attn_implementation=attn_implementation
                                                                 )
@@ -246,12 +240,12 @@ class LLMNeedleHaystackTester:
         # Checks to see if you've already checked a length/percent/version.
         # This helps if the program stop running and you want to restart later
 
-        if self.save_results:
-            if self.result_exists(context_length, depth_percent):
-                print("result exists, skipping")
-                return
-            else:
-                print("result does not exist, testing")
+        # if self.save_results:
+        #     if self.result_exists(context_length, depth_percent):
+        #         print("result exists, skipping")
+        #         return
+        #     else:
+        #         print("result does not exist, testing")
 
         # Prepare your message to send to the model you're going to evaluate
         prompt = self.generate_prompt(context)
@@ -301,7 +295,7 @@ class LLMNeedleHaystackTester:
             print (f"Needle: {self.needle}")
             print (f"Response: {response}\n")
 
-        context_file_location = f'{self.model_version.replace(".", "_").replace("/", "__")}_len_{context_length}_depth_{int(depth_percent*100)}'
+        context_file_location = f'len_{context_length}_depth_{int(depth_percent*100)}'
 
         if self.save_contexts:
             results['file_name'] = context_file_location
@@ -310,22 +304,16 @@ class LLMNeedleHaystackTester:
             if not os.path.exists('results_needle/contexts'):
                 os.makedirs('results_needle/contexts')
 
-            if not os.path.exists(f'results_needle/contexts/{self.model_version}'):
-                os.makedirs(f'results_needle/contexts/{self.model_version}')
-
-            with open(f'results_needle/contexts/{self.model_version}/{context_file_location}_context.txt', 'w') as f:
+            with open(f'results_needle/contexts/{context_file_location}_context.txt', 'w') as f:
                 f.write(context)
             
         if self.save_results:
             # Save the context to file for retesting
             if not os.path.exists('results_needle/results'):
                 os.makedirs('results_needle/results')
-            
-            if not os.path.exists(f'results_needle/results/{self.model_version}'):
-                os.makedirs(f'results_needle/results/{self.model_version}')
 
             # Save the result to file for retesting
-            p = f'results_needle/results/{self.model_version}/{context_file_location}_results.json'
+            p = f'results_needle/results/{context_file_location}_results.json'
             print("Writing at %s" % p)
             with open(p, 'w') as f:
                 json.dump(results, f, ensure_ascii=False)
@@ -335,7 +323,7 @@ class LLMNeedleHaystackTester:
         Checks to see if a result has already been evaluated or not
         """
 
-        results_dir = 'results_needle/results/' + self.model_version
+        results_dir = 'results_needle/results/'
         print("Searching existing results at %s" % results_dir)
         if not os.path.exists(results_dir):
             return False
@@ -467,19 +455,17 @@ if __name__ == "__main__":
     parser.add_argument('-e', '--e_len', metavar='N', type=int, help='a number')
     parser.add_argument('--model_name', type=str, default=None, help='name of model')
     parser.add_argument("--attn_implementation", type=str,  default="flash_attention_2", choices=["flash_attention_2", "sdpa", "None"])
-    parser.add_argument('--model_version', type=str, default=None, help='provider of model')
     parser.add_argument('--model_name_suffix', type=str, default=None, help='name of model')
     parser.add_argument('--model_provider', type=str, default="LLaMA", help='which model to use')
     parser.add_argument('--api_key', type=str, default="", help='OpenAI API Key')
     parser.add_argument('--step', type=int, default=1000)
     args = parser.parse_args()
 
-
+    
 
     ht = LLMNeedleHaystackTester(model_name=args.model_name, 
                                  model_name_suffix=args.model_name_suffix,
                                  model_provider=args.model_provider,
-                                 model_version=args.model_version, 
                                  save_contexts=True,
                                  save_results=True,
                                  openai_api_key=args.api_key, 

@@ -18,8 +18,8 @@ from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
 from accelerate.utils import DistributedType
 from datasets import load_dataset
 from trl import SFTConfig, SFTTrainer, DataCollatorForCompletionOnlyLM
-from taming.models.compress import KeyCompressor, ValueCompressor
 import numpy as np
+from commvq.modeling_llama_collect_kv import LlamaForCausalLM
 import warnings
 warnings.filterwarnings("ignore")
 
@@ -184,7 +184,8 @@ def extract_alpaca_dataset(example):
 
 
 def train():
-    os.makedirs("data", exist_ok=True)
+    os.makedirs("data/key", exist_ok=True)
+    os.makedirs("data/value", exist_ok=True)
     global local_rank
 
     parser = transformers.HfArgumentParser(
@@ -238,7 +239,7 @@ def train():
     config.quant_bits = model_args.quant_bits
 
     # Load model and tokenizer
-    model = transformers.AutoModelForCausalLM.from_pretrained(
+    model = LlamaForCausalLM.from_pretrained(
         model_args.model_name_or_path,
         config=config,
         torch_dtype=torch.bfloat16,

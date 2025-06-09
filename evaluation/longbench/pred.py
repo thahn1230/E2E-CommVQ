@@ -7,7 +7,6 @@ from tqdm import tqdm
 import numpy as np
 import random
 import argparse
-from llama_flash_attn_monkey_patch import replace_llama_attn_with_flash_attn
 import torch.distributed as dist
 import torch.multiprocessing as mp
 import copy
@@ -132,14 +131,13 @@ if __name__ == '__main__':
 
     # define your model
     max_length = model2maxlen[model_name]
-    datasets = ["qasper", "qmsum", "multi_news", "trec", "triviaqa", "samsum", "lcc", "repobench-p"]
+    # datasets = ["qasper", "qmsum", "multi_news", "trec", "triviaqa", "samsum", "lcc", "repobench-p"]
+    datasets = ["qasper", "samsum"]
     dataset2prompt = json.load(open("config/dataset2prompt.json", "r"))
     dataset2maxlen = json.load(open("config/dataset2maxlen.json", "r"))
     # predict on each dataset
     if not os.path.exists("pred"):
         os.makedirs("pred")
-    if not os.path.exists("pred_e"):
-        os.makedirs("pred_e")
     for dataset in datasets:
         if args.e:
             data = load_dataset('THUDM/LongBench', f"{dataset}_e", split='test')

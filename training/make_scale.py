@@ -3,9 +3,7 @@ import glob
 import torch
 from tqdm import tqdm
 from tqdm.contrib.concurrent import process_map
-# model = "llama2-7b-32k"
-# model = "Llama-3.1-70B-Instruct"
-# model = "Qwen2.5-7B-Instruct"
+N = 32 # Number of layers in LLM
 
 def handle_one(prefix):
     x1, idx = prefix.split("_")
@@ -34,7 +32,7 @@ def handle_one(prefix):
 
 if __name__ == "__main__":
     prefix = []
-    for i in range(28):
+    for i in range(N):
         prefix.append(f"key_{i:03d}")
         prefix.append(f"value_{i:03d}")
     means = process_map(handle_one, prefix, max_workers=8)
