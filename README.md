@@ -89,10 +89,6 @@ bash eval_memory.sh $CHECKPOINT
 
 If you find **CommVQ** useful in your research or applications, please consider citing:
 
-## Citation
-
-If you find **CommVQ** useful in your research or applications, please consider citing:
-
 ```bibtex
 @inproceedings{li2025commvq,
   title = {CommVQ: Commutative Vector Quantization for KV Cache Compression},
