@@ -1,6 +1,6 @@
 # CommVQ: Commutative Vector Quantization for KV Cache Compression
 
-[[Paper](https://arxiv.org/abs/xxxx.xxxxx)] [[Hugging Face Models](https://huggingface.co/collections/senfu/commvq-68412ebc14e0f9cdfffb7172)]
+[[Paper](https://arxiv.org/abs/2506.18879)] [[Hugging Face Models](https://huggingface.co/collections/senfu/commvq-68412ebc14e0f9cdfffb7172)]
 
 This repository contains the official implementation of **CommVQ**, a method for **memory-efficient** and **long-context** inference through KV cache quantization with learned codebooks. It achieves strong performance across a wide range of benchmarks while significantly reducing memory overhead.
 
