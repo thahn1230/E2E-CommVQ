@@ -271,9 +271,15 @@ class KeyCompressor(nn.Module):
             # Get codebook centers for this residual: [num_groups, codebook_size, group_size]
             centers_r = codebook_centers[:, r, :, :]  # [G, C, H]
             
-            # Einstein summation: batch and seq_len broadcast over groups
-            # indices: [B, S, G, C], centers_r: [G, C, H] -> selected: [B, S, G, H]
-            selected = torch.einsum('bsgc,gch->bsgh', indices, centers_r)
+            # Use matmul instead of einsum for better memory safety
+            # indices: [B, S, G, C], centers_r: [G, C, H]
+            # Process each group separately to avoid memory issues
+            selected = torch.zeros_like(residual)  # [B, S, G, H]
+            for g in range(self.num_groups):
+                # indices[:, :, g, :]: [B, S, C]
+                # centers_r[g, :, :]: [C, H]
+                # result: [B, S, H]
+                selected[:, :, g, :] = torch.matmul(indices[:, :, g, :], centers_r[g, :, :])
             
             quantized_x = quantized_x + selected
             residual = residual - selected
