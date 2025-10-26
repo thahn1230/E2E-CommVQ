@@ -6,7 +6,14 @@ Created by @66RING 6/6/2024
 import warnings
 warnings.filterwarnings("ignore")
 import os 
+import sys
 import glob
+
+# Disable flash-attn import to avoid GLIBC errors
+os.environ['TRANSFORMERS_NO_ADVISORY_WARNINGS'] = '1'
+sys.modules['flash_attn'] = None
+sys.modules['flash_attn.bert_padding'] = None
+sys.modules['flash_attn.flash_attn_interface'] = None
 
 import json
 from commvq.modeling_llama_triton import LlamaForCausalLM
@@ -14,8 +21,6 @@ from transformers import AutoTokenizer
 import numpy as np
 import argparse
 from rouge_score import rouge_scorer
-
-import os
 
 from datetime import datetime, timezone
 import time

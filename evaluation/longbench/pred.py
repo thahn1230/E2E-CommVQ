@@ -1,4 +1,13 @@
 import os
+import sys
+
+# Disable flash-attn import to avoid GLIBC errors
+os.environ['TRANSFORMERS_NO_ADVISORY_WARNINGS'] = '1'
+# Monkey-patch to prevent flash_attn import
+sys.modules['flash_attn'] = None
+sys.modules['flash_attn.bert_padding'] = None
+sys.modules['flash_attn.flash_attn_interface'] = None
+
 from datasets import load_dataset
 import torch
 import json

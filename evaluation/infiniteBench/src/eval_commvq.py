@@ -2,6 +2,14 @@ import json
 from pathlib import Path
 import time
 from typing import List, Tuple, Any
+import os
+import sys
+
+# Disable flash-attn import to avoid GLIBC errors
+os.environ['TRANSFORMERS_NO_ADVISORY_WARNINGS'] = '1'
+sys.modules['flash_attn'] = None
+sys.modules['flash_attn.bert_padding'] = None
+sys.modules['flash_attn.flash_attn_interface'] = None
 
 import torch
 from torch import Tensor
