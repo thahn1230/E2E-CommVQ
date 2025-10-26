@@ -125,6 +125,12 @@ if __name__ == '__main__':
     seed_everything(42)
     args = parse_args()
     world_size = torch.cuda.device_count()
+    
+    # Safety check: ensure we have at least 1 GPU
+    if world_size == 0:
+        raise RuntimeError("No CUDA devices available!")
+    
+    print(f"Found {world_size} GPU(s). Using GPU 0 to {world_size-1}")
     mp.set_start_method('spawn', force=True)
 
     model2path = json.load(open("config/model2path.json", "r"))

@@ -89,7 +89,9 @@ bash finetune/llama3.1_8b_int1.sh
 - ✅ 100% compatible with existing evaluation scripts
 - ✅ Maintains RoPE-Commutative structure
 
-📖 For detailed E2E training guide, see [E2E_COMMVQ_GUIDE.md](E2E_COMMVQ_GUIDE.md)
+📖 **E2E Training Documentation:**
+- **Quick Start**: [E2E_TRAINING_FLOW.md](E2E_TRAINING_FLOW.md) - Complete training pipeline
+- **Detailed Guide**: [E2E_COMMVQ_GUIDE.md](E2E_COMMVQ_GUIDE.md) - Architecture & implementation details
 
 ## Evaluation
 
@@ -119,7 +121,7 @@ python compute_scores.py --task all --model_name commvq
 ### NIAH
 
 ```python
-cd evaluation/niah
+cd evaluation/niah해ㅑㅅ
 bash run.sh $CHECKPOINT
 ```
 
