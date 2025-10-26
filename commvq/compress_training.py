@@ -267,14 +267,16 @@ class KeyCompressor(nn.Module):
             # Get codebook centers for this residual
             centers_r = codebook_centers[:, r, :, :]  # [G, C, H]
             
-            # Safe matmul with broadcasting
+            # Simple and explicit: loop over groups to avoid broadcasting issues
             B, S, G, C = indices.shape
+            H = centers_r.shape[-1]
             
-            # [B, S, G, 1, C] @ [1, 1, G, C, H] -> [B, S, G, 1, H] -> [B, S, G, H]
-            selected = torch.matmul(
-                indices.unsqueeze(-2),  # [B, S, G, 1, C]
-                centers_r.unsqueeze(0).unsqueeze(0)  # [1, 1, G, C, H]
-            ).squeeze(-2)  # [B, S, G, H]
+            selected = torch.zeros(B, S, G, H, device=indices.device, dtype=indices.dtype)
+            for g in range(G):
+                # indices[:, :, g, :]: [B, S, C]
+                # centers_r[g, :, :]: [C, H]
+                # result: [B, S, H]
+                selected[:, :, g, :] = torch.matmul(indices[:, :, g, :], centers_r[g, :, :])
             
             # Accumulate
             quantized_layers.append(selected)
