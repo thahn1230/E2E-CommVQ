@@ -14,7 +14,7 @@ EPOCHS=100
 LR=0.001
 BATCH_SIZE=256
 NUM_LAYERS=32
-NUM_SAMPLES=1000000  # Number of samples to collect for training
+NUM_SAMPLES=100000  # Number of samples to collect for training (default: 100K, sufficient for most cases)
 MAX_SEQ_LENGTH=8192
 
 # Parse command line arguments
@@ -40,13 +40,19 @@ E2E Key Codebook Training Options:
   --num_layers N             Number of layers to train
                              (default: 32)
   --num_samples N            Number of samples to collect
-                             (default: 1000000)
+                             (default: 100000, use 10000 for quick test)
   --layer LAYER_ID           Train only specific layer (optional)
   -h, --help                 Show this help message
 
 Examples:
-  # Train all layers with default settings
+  # Quick test with 10K samples (30 min on A100)
+  bash train_e2e_key_codebook.sh --num_samples 10000 --layer 0 --epochs 50
+
+  # Train all layers with default settings (100K samples, ~6 hours)
   bash train_e2e_key_codebook.sh
+
+  # High quality training (1M samples, ~50 hours)
+  bash train_e2e_key_codebook.sh --num_samples 1000000
 
   # Train with custom model and output directory
   bash train_e2e_key_codebook.sh -m /path/to/model -o my_codebook

@@ -17,6 +17,7 @@ sys.modules['flash_attn.flash_attn_interface'] = None
 
 import torch
 import numpy as np
+import time
 from transformers import AutoTokenizer, AutoModelForCausalLM
 from datasets import load_dataset
 from tqdm import tqdm
@@ -32,8 +33,8 @@ def parse_args():
                        help='Dataset to use for KV collection')
     parser.add_argument('--output_dir', type=str, default='data/key',
                        help='Directory to save collected KV cache')
-    parser.add_argument('--num_samples', type=int, default=1000000,
-                       help='Number of samples to process')
+    parser.add_argument('--num_samples', type=int, default=100000,
+                       help='Number of samples to process (10K for quick test, 100K default, 1M for best quality)')
     parser.add_argument('--max_seq_length', type=int, default=8192,
                        help='Maximum sequence length')
     parser.add_argument('--quant_bits', type=int, default=2,
@@ -127,9 +128,17 @@ def collect_kv_cache(args):
             samples_processed += 1
             
             # Save periodically to avoid memory issues
-            if samples_processed % 1000 == 0:
-                print(f"Processed {samples_processed} samples, saving intermediate results...")
-                for layer_idx in range(num_layers):
+            # Adjust save frequency based on total samples
+            save_freq = min(1000, max(100, args.num_samples // 10))  # Save 10 times during collection
+            
+            if samples_processed % save_freq == 0:
+                print(f"\n{'='*60}")
+                print(f"Processed {samples_processed}/{args.num_samples} samples ({100*samples_processed/args.num_samples:.1f}%)")
+                print(f"Saving intermediate results to {args.output_dir}/...")
+                print(f"{'='*60}")
+                
+                save_start_time = time.time()
+                for layer_idx in tqdm(range(num_layers), desc="Saving layers", leave=False):
                     if len(kv_caches[layer_idx]) > 0:
                         # Concatenate and save
                         layer_cache = torch.cat(kv_caches[layer_idx], dim=0)
@@ -137,7 +146,7 @@ def collect_kv_cache(args):
                         # Save to file
                         filename = os.path.join(
                             args.output_dir,
-                            f"{str(layer_idx).zfill(3)}_{samples_processed//1000}.pt"
+                            f"{str(layer_idx).zfill(3)}_{samples_processed//save_freq}.pt"
                         )
                         torch.save(layer_cache.unsqueeze(0), filename)
                         
@@ -145,10 +154,17 @@ def collect_kv_cache(args):
                         kv_caches[layer_idx] = []
                 
                 torch.cuda.empty_cache()
+                save_time = time.time() - save_start_time
+                print(f"✓ Saved in {save_time:.1f}s. Continuing collection...\n")
     
     # Save remaining data
+    print(f"\n{'='*60}")
     print("Saving final results...")
-    for layer_idx in range(num_layers):
+    print(f"{'='*60}")
+    
+    save_start_time = time.time()
+    saved_files = 0
+    for layer_idx in tqdm(range(num_layers), desc="Saving final data"):
         if len(kv_caches[layer_idx]) > 0:
             layer_cache = torch.cat(kv_caches[layer_idx], dim=0)
             filename = os.path.join(
@@ -156,10 +172,17 @@ def collect_kv_cache(args):
                 f"{str(layer_idx).zfill(3)}_final.pt"
             )
             torch.save(layer_cache.unsqueeze(0), filename)
+            saved_files += 1
     
+    save_time = time.time() - save_start_time
+    
+    print(f"\n{'='*60}")
     print(f"✓ KV cache collection completed!")
-    print(f"  Processed {samples_processed} samples")
-    print(f"  Saved to {args.output_dir}/")
+    print(f"  Processed: {samples_processed} samples")
+    print(f"  Saved: {saved_files} layer files")
+    print(f"  Location: {args.output_dir}/")
+    print(f"  Save time: {save_time:.1f}s")
+    print(f"{'='*60}")
 
 
 if __name__ == "__main__":
