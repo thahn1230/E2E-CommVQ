@@ -44,6 +44,8 @@ pip install flash-attn --no-build-isolation
 
 ## Training
 
+### Standard Training (EM Algorithm)
+
 ```bash
 cd training
 
@@ -53,12 +55,41 @@ bash collect_kv.sh
 # Step 2: Prepare scaling factors
 python make_scale.py
 
-# Step 3: Train the codebook for key cache
+# Step 3: Train the codebook for key cache (EM algorithm)
 bash quantize_key_cache.sh
 
 # Step 4: Train the codebook for value cache
 bash finetune/llama3.1_8b_int1.sh
 ```
+
+### E2E Training (End-to-End Gradient Descent) ⭐ NEW
+
+E2E-CommVQ provides a more stable alternative to EM training using end-to-end gradient descent:
+
+```bash
+cd training
+
+# Step 1-2: Same as above (collect KV cache and prepare scaling factors)
+bash collect_kv.sh
+python make_scale.py
+
+# Step 3: Train the codebook for key cache (E2E method)
+bash quantize_key_cache_e2e.sh
+
+# Or train a single layer with custom hyperparameters:
+python quantize_key_cache.py 0 --training_method e2e --epochs 100 --lr 0.001
+
+# Step 4: Train the codebook for value cache (same as EM)
+bash finetune/llama3.1_8b_int1.sh
+```
+
+**Key Benefits of E2E Training:**
+- ✅ Fully differentiable training with backpropagation
+- ✅ More stable than EM (no local minima issues)
+- ✅ 100% compatible with existing evaluation scripts
+- ✅ Maintains RoPE-Commutative structure
+
+📖 For detailed E2E training guide, see [E2E_COMMVQ_GUIDE.md](E2E_COMMVQ_GUIDE.md)
 
 ## Evaluation
 

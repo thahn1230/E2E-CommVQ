@@ -9,6 +9,7 @@ import random
 import json
 import sys
 import os
+import argparse
 from tqdm.contrib.concurrent import process_map
 warnings.filterwarnings("ignore")
 # Parameters for the EM algorithm
@@ -187,30 +188,140 @@ def handle_single(args, all_tensors, tensors_norm):
     torch.save(data, filename)
     return error
 
+def train_e2e(layer_idx, all_tensors, tensors_norm, epochs=100, lr=0.001, batch_size=256):
+    """
+    E2E training method using gradient descent instead of EM algorithm.
+    """
+    from commvq.compress_training import KeyCompressor
+    
+    print(f"Starting E2E training for layer {layer_idx}...")
+    
+    # Initialize model
+    feat_dim = KV_DIM
+    model = KeyCompressor(
+        feat_dim=feat_dim, 
+        layer_idx=layer_idx, 
+        quant_bits=N_BITS // 6,  # 12 bits -> 2, 6 bits -> 1
+        num_residuals=RESIDUAL_NUM,
+        group_size=M_GROUP
+    ).cuda()
+    
+    # Set up optimizer
+    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=epochs)
+    
+    # Prepare data
+    N = all_tensors.shape[0]
+    dataset = torch.utils.data.TensorDataset(all_tensors, tensors_norm)
+    dataloader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=True)
+    
+    # Training loop
+    best_loss = float('inf')
+    for epoch in range(epochs):
+        model.train()
+        total_loss = 0
+        total_recon_loss = 0
+        total_commit_loss = 0
+        
+        pbar = tqdm(dataloader, desc=f"Epoch {epoch+1}/{epochs}")
+        for batch_x, batch_norm in pbar:
+            optimizer.zero_grad()
+            
+            # Add batch dimension for consistency
+            batch_x_input = batch_x.unsqueeze(0)  # [1, batch, feat_dim]
+            
+            # Forward pass
+            quantized_x, prescale, commitment_loss = model.encode(batch_x_input, training_method='e2e')
+            
+            # Reconstruction loss (MSE between original and quantized)
+            quantized_x_normed = quantized_x.squeeze(0) / batch_norm
+            recon_loss = F.mse_loss(quantized_x_normed, batch_x)
+            
+            # Total loss
+            loss = recon_loss + 0.25 * commitment_loss
+            
+            # Backward pass
+            loss.backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+            optimizer.step()
+            
+            total_loss += loss.item()
+            total_recon_loss += recon_loss.item()
+            total_commit_loss += commitment_loss.item()
+            
+            pbar.set_postfix({
+                'loss': f'{loss.item():.6f}',
+                'recon': f'{recon_loss.item():.6f}',
+                'commit': f'{commitment_loss.item():.6f}'
+            })
+        
+        scheduler.step()
+        
+        avg_loss = total_loss / len(dataloader)
+        avg_recon = total_recon_loss / len(dataloader)
+        avg_commit = total_commit_loss / len(dataloader)
+        
+        print(f"Epoch {epoch+1}/{epochs} - Loss: {avg_loss:.6f}, Recon: {avg_recon:.6f}, Commit: {avg_commit:.6f}")
+        
+        if avg_loss < best_loss:
+            best_loss = avg_loss
+            # Save best model
+            model.save_codebook_em_format(RESULT_DIR)
+            print(f"Saved best model with loss {best_loss:.6f}")
+    
+    print(f"E2E training completed for layer {layer_idx}. Best loss: {best_loss:.6f}")
+    return best_loss
+
+
 if __name__ == "__main__":
+    # Parse arguments
+    parser = argparse.ArgumentParser(description='Train Key cache quantization codebook')
+    parser.add_argument('layer_idx', type=int, nargs='?', default=0, help='Layer index to train')
+    parser.add_argument('--training_method', type=str, default='em', choices=['em', 'e2e'],
+                       help='Training method: em (Expectation-Maximization) or e2e (End-to-End)')
+    parser.add_argument('--epochs', type=int, default=100, help='Number of epochs for E2E training')
+    parser.add_argument('--lr', type=float, default=0.001, help='Learning rate for E2E training')
+    parser.add_argument('--batch_size', type=int, default=256, help='Batch size for E2E training')
+    
+    args = parser.parse_args()
+    
     os.makedirs(RESULT_DIR, exist_ok=True)
-    layer_idx = sys.argv[1] if len(sys.argv) > 1 else 0
+    layer_idx = args.layer_idx
+    
+    # Load data
+    print(f"Loading data for layer {layer_idx}...")
     all_tensors = []
     ALL_FILES = glob.glob(f"data/key/{str(layer_idx).zfill(3)}_*.pt")
     ALL_FILES.sort()
-    # all_files = ALL_FILES[:4000]
     all_files = ALL_FILES
     for file in all_files:
         tensor = torch.load(file, map_location=torch.device('cpu'))
         all_tensors.append(tensor)
     all_tensors = torch.cat(all_tensors, dim=1).squeeze().float()
-    jobs = []
-    # for index in [5]:
-    for index in range(0, KV_DIM//M_GROUP):
-        N = min(256 * CLUSTERING_CENTER_NUM, all_tensors.shape[0])
-        repeat=RESIDUAL_NUM
-        jobs.append((layer_idx, index, N, repeat))
+    
+    # Prepare data
+    N = min(256 * CLUSTERING_CENTER_NUM, all_tensors.shape[0])
     all_tensors = all_tensors[:N].cuda()
     all_tensors = all_tensors.view(N, 8, 2, 64).transpose(2, 3).flatten(1)
     tensors_norm = all_tensors.norm(dim=1, keepdim=True)
     all_tensors = all_tensors / tensors_norm
-    errors = []
-    for job in tqdm(jobs):
-        error = handle_single(job, all_tensors, tensors_norm)
-        errors.append(error)
-    print("Mean error:", np.mean(errors))
+    
+    print(f"Data shape: {all_tensors.shape}, Training method: {args.training_method}")
+    
+    if args.training_method == 'e2e':
+        # E2E training
+        final_error = train_e2e(layer_idx, all_tensors, tensors_norm, 
+                               epochs=args.epochs, lr=args.lr, batch_size=args.batch_size)
+        print(f"Final error: {final_error:.6f}")
+    else:
+        # EM training (original)
+        jobs = []
+        for index in range(0, KV_DIM//M_GROUP):
+            repeat = RESIDUAL_NUM
+            jobs.append((layer_idx, index, N, repeat))
+        
+        errors = []
+        for job in tqdm(jobs):
+            error = handle_single(job, all_tensors, tensors_norm)
+            errors.append(error)
+        print("Mean error:", np.mean(errors))
