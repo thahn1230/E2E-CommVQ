@@ -263,21 +263,29 @@ def train_e2e(layer_idx, all_tensors, tensors_norm, epochs=100, lr=0.001, batch_
             # Backward pass
             loss.backward()
             
-            # Check gradients before clipping
+            # Manual gradient clipping (safer than torch.nn.utils version)
+            max_norm = 1.0
             total_norm = 0.0
-            for p in model.parameters():
-                if p.grad is not None:
-                    param_norm = p.grad.data.norm(2)
-                    total_norm += param_norm.item() ** 2
+            parameters = [p for p in model.parameters() if p.grad is not None]
+            
+            # Calculate total norm
+            for p in parameters:
+                param_norm = p.grad.data.norm(2)
+                total_norm += param_norm.item() ** 2
             total_norm = total_norm ** 0.5
             
-            if torch.isnan(torch.tensor(total_norm)) or torch.isinf(torch.tensor(total_norm)):
-                print(f"Warning: NaN/Inf gradients detected, skipping batch")
+            # Check for NaN/Inf
+            if torch.isnan(torch.tensor(total_norm)) or torch.isinf(torch.tensor(total_norm)) or total_norm > 1000:
+                print(f"Warning: Invalid gradients (norm={total_norm}), skipping batch")
                 optimizer.zero_grad()
                 continue
             
-            # Clip gradients
-            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+            # Clip manually
+            clip_coef = max_norm / (total_norm + 1e-6)
+            if clip_coef < 1:
+                for p in parameters:
+                    p.grad.data.mul_(clip_coef)
+            
             optimizer.step()
             
             total_loss += loss.item()

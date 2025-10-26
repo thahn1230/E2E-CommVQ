@@ -106,21 +106,33 @@ def train_small_dataset():
             # Backward
             loss.backward()
             
-            # Check gradients
-            has_nan_grad = False
-            for name, p in model.named_parameters():
-                if p.grad is not None:
-                    if torch.isnan(p.grad).any() or torch.isinf(p.grad).any():
-                        print(f"\nBatch {batch_idx}: NaN/Inf gradient in {name}")
-                        has_nan_grad = True
-                        break
+            # Manual gradient clipping (safer)
+            max_norm = 1.0
+            total_norm = 0.0
+            parameters = [p for p in model.parameters() if p.grad is not None]
             
-            if has_nan_grad:
+            # Check gradients and calculate norm
+            has_nan_grad = False
+            for p in parameters:
+                if torch.isnan(p.grad).any() or torch.isinf(p.grad).any():
+                    has_nan_grad = True
+                    break
+                param_norm = p.grad.data.norm(2)
+                total_norm += param_norm.item() ** 2
+            
+            if has_nan_grad or total_norm > 1e6:
+                print(f"\nBatch {batch_idx}: Invalid gradients detected, skipping")
                 optimizer.zero_grad()
                 continue
             
-            # Gradient clipping
-            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+            total_norm = total_norm ** 0.5
+            
+            # Clip manually
+            clip_coef = max_norm / (total_norm + 1e-6)
+            if clip_coef < 1:
+                for p in parameters:
+                    p.grad.data.mul_(clip_coef)
+            
             optimizer.step()
             
             total_loss += loss.item()
