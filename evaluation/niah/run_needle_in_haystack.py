@@ -58,7 +58,7 @@ class LLMNeedleHaystackTester:
                  seconds_to_sleep_between_completions = None,
                  print_ongoing_status = True, 
                  step=100, 
-                 attn_implementation='flash_attention_2',
+                 attn_implementation='sdpa',  # Use SDPA instead of flash_attention_2 for GLIBC compatibility
                  ):
         """        
         :param needle: The needle to be found in the haystack. Default is None.
@@ -459,7 +459,7 @@ if __name__ == "__main__":
     parser.add_argument('-s', '--s_len', metavar='N', type=int, help='a number')
     parser.add_argument('-e', '--e_len', metavar='N', type=int, help='a number')
     parser.add_argument('--model_name', type=str, default=None, help='name of model')
-    parser.add_argument("--attn_implementation", type=str,  default="flash_attention_2", choices=["flash_attention_2", "sdpa", "None"])
+    parser.add_argument("--attn_implementation", type=str,  default="sdpa", choices=["flash_attention_2", "sdpa", "None"])  # Changed default for GLIBC compatibility
     parser.add_argument('--model_name_suffix', type=str, default=None, help='name of model')
     parser.add_argument('--model_provider', type=str, default="LLaMA", help='which model to use')
     parser.add_argument('--api_key', type=str, default="", help='OpenAI API Key')

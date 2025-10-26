@@ -103,7 +103,7 @@ def load_long_kv(path):
     model = LlamaForCausalLM.from_pretrained(
         path, trust_remote_code=True,
         torch_dtype=torch.bfloat16,
-        attn_implementation="flash_attention_2",
+        attn_implementation="sdpa",  # Use SDPA instead of flash_attention_2 for GLIBC compatibility
         device_map="auto",
     )
     model = model.eval()

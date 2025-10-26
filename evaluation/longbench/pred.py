@@ -114,7 +114,7 @@ def load_model_and_tokenizer(path, model_name, rank, world_size):
     model = AutoModelForCausalLM.from_pretrained(
         path, trust_remote_code=True,
         torch_dtype=torch.bfloat16,
-        attn_implementation="flash_attention_2",
+        attn_implementation="sdpa",  # Use SDPA instead of flash_attention_2 for GLIBC compatibility
         # device_map="auto",
         # max_memory=max_memory,
     ).to(f'cuda:{rank}')
