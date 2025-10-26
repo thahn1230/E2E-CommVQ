@@ -7,6 +7,14 @@ Unlike EM training which uses a trained model, E2E directly uses the base model.
 
 import argparse
 import os
+import sys
+
+# Disable flash-attn import to avoid GLIBC errors
+os.environ['TRANSFORMERS_NO_ADVISORY_WARNINGS'] = '1'
+sys.modules['flash_attn'] = None
+sys.modules['flash_attn.bert_padding'] = None
+sys.modules['flash_attn.flash_attn_interface'] = None
+
 import torch
 import numpy as np
 from transformers import AutoTokenizer, AutoModelForCausalLM
@@ -45,6 +53,7 @@ def collect_kv_cache(args):
     model = AutoModelForCausalLM.from_pretrained(
         args.model_path,
         torch_dtype=torch.bfloat16,
+        attn_implementation="sdpa",  # Use SDPA instead of flash_attention_2 for GLIBC compatibility
         device_map="auto",
         trust_remote_code=True,
     )
