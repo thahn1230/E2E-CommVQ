@@ -242,9 +242,9 @@ class KeyCompressor(nn.Module):
         x_grouped = x.view(original_shape[0], original_shape[1], self.num_groups, self.group_size)
         
         # Residual quantization with Straight-Through Estimator
-        quantized_x = torch.zeros_like(x_grouped)
-        residual = x_grouped.clone()
-        commitment_loss = 0.0
+        # Accumulate without inplace operations to avoid memory issues
+        quantized_layers = []
+        residual = x_grouped
         
         for r in range(self.num_residuals):
             # Get logits for this residual: [batch, seq_len, num_groups, codebook_size]
@@ -264,31 +264,27 @@ class KeyCompressor(nn.Module):
                 ).float()
                 indices = indices_hard
             
-            # Gather quantized vectors: [batch, seq_len, num_groups, group_size]
-            # codebook_centers: [num_groups, num_residuals, codebook_size, group_size]
-            # indices: [batch, seq_len, num_groups, codebook_size]
-            
-            # Get codebook centers for this residual: [num_groups, codebook_size, group_size]
+            # Get codebook centers for this residual
             centers_r = codebook_centers[:, r, :, :]  # [G, C, H]
             
-            # Use matmul instead of einsum for better memory safety
-            # indices: [B, S, G, C], centers_r: [G, C, H]
-            # Process each group separately to avoid memory issues
-            selected = torch.zeros_like(residual)  # [B, S, G, H]
-            for g in range(self.num_groups):
-                # indices[:, :, g, :]: [B, S, C]
-                # centers_r[g, :, :]: [C, H]
-                # result: [B, S, H]
-                selected[:, :, g, :] = torch.matmul(indices[:, :, g, :], centers_r[g, :, :])
+            # Safe matmul with broadcasting
+            B, S, G, C = indices.shape
             
-            quantized_x = quantized_x + selected
+            # [B, S, G, 1, C] @ [1, 1, G, C, H] -> [B, S, G, 1, H] -> [B, S, G, H]
+            selected = torch.matmul(
+                indices.unsqueeze(-2),  # [B, S, G, 1, C]
+                centers_r.unsqueeze(0).unsqueeze(0)  # [1, 1, G, C, H]
+            ).squeeze(-2)  # [B, S, G, H]
+            
+            # Accumulate
+            quantized_layers.append(selected)
             residual = residual - selected
-            
-            # Commitment loss (encourage encoder output to commit to codebook)
-            if self.training:
-                commitment_loss = commitment_loss + torch.mean(residual ** 2)
         
-        commitment_loss = commitment_loss / self.num_residuals
+        # Sum all layers
+        quantized_x = torch.stack(quantized_layers, dim=0).sum(dim=0)
+        
+        # Simplified commitment loss
+        commitment_loss = torch.mean(residual ** 2) if self.training else torch.tensor(0.0, device=residual.device)
         
         # Restore shape and apply prescale
         quantized_x = quantized_x.view(original_shape)
