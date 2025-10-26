@@ -218,7 +218,7 @@ class KeyCompressor(nn.Module):
             raise NotImplementedError("EM-based encoding should use compress_evaluation.KeyCompressor")
         
         # E2E encoding
-        original_shape = x.shape
+        original_shape = x.shape  # [batch, seq_len, feat_dim]
         x = x / (self.learnable_scale + self.eps)
         prescale = torch.norm(x, dim=-1, keepdim=True)
         x = x / (prescale + self.eps)
@@ -227,16 +227,18 @@ class KeyCompressor(nn.Module):
         x = self.norm1(x)
         h = self.enc1(x)
         h = self.act1(h)
-        logits = self.enc2(h)  # [batch, seq_len, num_groups * num_residuals * codebook_size]
+        logits = self.enc2(h)  # [batch, seq_len, encoder_dim]
         
         # Reshape for residual quantization
-        # [batch, seq_len, num_groups, num_residuals, codebook_size]
+        # encoder_dim = num_groups * num_residuals * codebook_size
         logits = logits.view(original_shape[0], original_shape[1], self.num_groups, self.num_residuals, self.codebook_size)
         
         # Get codebook centers
         codebook_centers = self.get_codebook_centers()  # [num_groups, num_residuals, codebook_size, group_size]
         
-        # Reshape input for group processing
+        # Reshape normalized input for group processing
+        # x shape: [batch, seq_len, feat_dim]
+        # feat_dim = num_groups * group_size
         x_grouped = x.view(original_shape[0], original_shape[1], self.num_groups, self.group_size)
         
         # Residual quantization with Straight-Through Estimator

@@ -225,17 +225,30 @@ def train_e2e(layer_idx, all_tensors, tensors_norm, epochs=100, lr=0.001, batch_
         
         pbar = tqdm(dataloader, desc=f"Epoch {epoch+1}/{epochs}")
         for batch_x, batch_norm in pbar:
+            batch_x = batch_x.cuda()
+            batch_norm = batch_norm.cuda()
+            
             optimizer.zero_grad()
             
-            # Add batch dimension for consistency
-            batch_x_input = batch_x.unsqueeze(0)  # [1, batch, feat_dim]
+            # Input shape: [batch, feat_dim]
+            # Add batch dimension: [batch, feat_dim] -> [1, batch, feat_dim]
+            batch_x_input = batch_x.unsqueeze(0)
             
-            # Forward pass
+            # Forward pass (model handles normalization internally)
+            # Input: unnormalized [1, batch, feat_dim]
+            # Output: unnormalized [1, batch, feat_dim]
             quantized_x, prescale, commitment_loss = model.encode(batch_x_input, training_method='e2e')
             
-            # Reconstruction loss (MSE between original and quantized)
-            quantized_x_normed = quantized_x.squeeze(0) / batch_norm
-            recon_loss = F.mse_loss(quantized_x_normed, batch_x)
+            # Remove batch dimension: [1, batch, feat_dim] -> [batch, feat_dim]
+            quantized_x = quantized_x.squeeze(0)
+            
+            # Normalize both for comparison (more stable)
+            batch_x_normed = batch_x / batch_norm
+            quantized_x_norm = torch.norm(quantized_x, dim=1, keepdim=True)
+            quantized_x_normed = quantized_x / (quantized_x_norm + 1e-6)
+            
+            # Reconstruction loss (MSE between normalized vectors)
+            recon_loss = F.mse_loss(quantized_x_normed, batch_x_normed)
             
             # Total loss
             loss = recon_loss + 0.25 * commitment_loss
@@ -304,17 +317,17 @@ if __name__ == "__main__":
     all_tensors = all_tensors[:N].cuda()
     all_tensors = all_tensors.view(N, 8, 2, 64).transpose(2, 3).flatten(1)
     tensors_norm = all_tensors.norm(dim=1, keepdim=True)
-    all_tensors = all_tensors / tensors_norm
     
     print(f"Data shape: {all_tensors.shape}, Training method: {args.training_method}")
     
     if args.training_method == 'e2e':
-        # E2E training
+        # E2E training (use unnormalized data)
         final_error = train_e2e(layer_idx, all_tensors, tensors_norm, 
                                epochs=args.epochs, lr=args.lr, batch_size=args.batch_size)
         print(f"Final error: {final_error:.6f}")
     else:
-        # EM training (original)
+        # EM training (original) - normalize data
+        all_tensors = all_tensors / tensors_norm
         jobs = []
         for index in range(0, KV_DIM//M_GROUP):
             repeat = RESIDUAL_NUM
