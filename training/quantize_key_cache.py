@@ -210,10 +210,12 @@ def train_e2e(layer_idx, all_tensors, tensors_norm, epochs=100, lr=0.001, batch_
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=epochs)
     
-    # Prepare data
+    # Prepare data (move to CPU for DataLoader)
     N = all_tensors.shape[0]
-    dataset = torch.utils.data.TensorDataset(all_tensors, tensors_norm)
-    dataloader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=True)
+    all_tensors_cpu = all_tensors.cpu()
+    tensors_norm_cpu = tensors_norm.cpu()
+    dataset = torch.utils.data.TensorDataset(all_tensors_cpu, tensors_norm_cpu)
+    dataloader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=True, pin_memory=True)
     
     # Training loop
     best_loss = float('inf')
@@ -253,8 +255,28 @@ def train_e2e(layer_idx, all_tensors, tensors_norm, epochs=100, lr=0.001, batch_
             # Total loss
             loss = recon_loss + 0.25 * commitment_loss
             
+            # Check for NaN/Inf before backward
+            if torch.isnan(loss) or torch.isinf(loss):
+                print(f"Warning: NaN/Inf loss detected, skipping batch")
+                continue
+            
             # Backward pass
             loss.backward()
+            
+            # Check gradients before clipping
+            total_norm = 0.0
+            for p in model.parameters():
+                if p.grad is not None:
+                    param_norm = p.grad.data.norm(2)
+                    total_norm += param_norm.item() ** 2
+            total_norm = total_norm ** 0.5
+            
+            if torch.isnan(torch.tensor(total_norm)) or torch.isinf(torch.tensor(total_norm)):
+                print(f"Warning: NaN/Inf gradients detected, skipping batch")
+                optimizer.zero_grad()
+                continue
+            
+            # Clip gradients
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
             optimizer.step()
             
@@ -281,6 +303,9 @@ def train_e2e(layer_idx, all_tensors, tensors_norm, epochs=100, lr=0.001, batch_
             # Save best model
             model.save_codebook_em_format(RESULT_DIR)
             print(f"Saved best model with loss {best_loss:.6f}")
+        
+        # Clear CUDA cache to prevent memory leaks
+        torch.cuda.empty_cache()
     
     print(f"E2E training completed for layer {layer_idx}. Best loss: {best_loss:.6f}")
     return best_loss
@@ -295,6 +320,8 @@ if __name__ == "__main__":
     parser.add_argument('--epochs', type=int, default=100, help='Number of epochs for E2E training')
     parser.add_argument('--lr', type=float, default=0.001, help='Learning rate for E2E training')
     parser.add_argument('--batch_size', type=int, default=256, help='Batch size for E2E training')
+    parser.add_argument('--max_samples', type=int, default=None, 
+                       help='Maximum number of samples to use (default: all available)')
     
     args = parser.parse_args()
     
@@ -314,6 +341,9 @@ if __name__ == "__main__":
     
     # Prepare data
     N = min(256 * CLUSTERING_CENTER_NUM, all_tensors.shape[0])
+    if args.max_samples is not None:
+        N = min(N, args.max_samples)
+        print(f"Using max_samples limit: {N}")
     all_tensors = all_tensors[:N].cuda()
     all_tensors = all_tensors.view(N, 8, 2, 64).transpose(2, 3).flatten(1)
     tensors_norm = all_tensors.norm(dim=1, keepdim=True)
