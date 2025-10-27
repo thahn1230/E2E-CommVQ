@@ -266,7 +266,15 @@ def train():
             # Get the path to data/learnable_scale.pt relative to finetune.py location
             script_dir = os.path.dirname(os.path.abspath(__file__))
             data_path = os.path.join(script_dir, "data", "learnable_scale.pt")
-            learnable_scale_values = torch.load(data_path, map_location="cpu")["value"]
+            learnable_scale_data = torch.load(data_path, map_location="cpu")["value"]
+            
+            # learnable_scale_data can be either a dict {layer_idx: tensor} or a list/tensor
+            if isinstance(learnable_scale_data, dict):
+                learnable_scale_values = learnable_scale_data
+            else:
+                # Convert to dict for consistent access
+                learnable_scale_values = {i: learnable_scale_data[i] for i in range(len(learnable_scale_data))}
+            
             for i in range(len(model.model.layers)):
                 feat_dim = model.config.hidden_size // model.config.num_attention_heads * model.config.num_key_value_heads
                 key_vq_model = KeyCompressor(feat_dim=feat_dim, layer_idx=i, quant_bits=config.quant_bits)
@@ -276,7 +284,13 @@ def train():
                 )
                 model.model.layers[i].self_attn.key_vq_model = key_vq_model
                 model.model.layers[i].self_attn.value_vq_model = value_vq_model
-                value_mean = learnable_scale_values[i].to(torch.bfloat16)
+                
+                # Get value mean for this layer
+                if i in learnable_scale_values:
+                    value_mean = learnable_scale_values[i].to(torch.bfloat16)
+                else:
+                    # Fallback: use ones if layer not found
+                    value_mean = torch.ones(feat_dim, dtype=torch.bfloat16)
                 model.model.layers[i].self_attn.value_vq_model.learnable_scale.data = value_mean
         elif not model_args.is_stage2 and not model_args.is_stage1:
             for i in range(len(model.model.layers)):
