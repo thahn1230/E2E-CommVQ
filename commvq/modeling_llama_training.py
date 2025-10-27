@@ -679,7 +679,7 @@ class LlamaSdpaAttention(LlamaAttention):
         position_embeddings: Optional[Tuple[torch.Tensor, torch.Tensor]] = None,  # will become mandatory in v4.46
         **kwargs,
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor], Optional[Tuple[torch.Tensor]]]:
-        raise NotImplementedError("Currently CommVQ is only supported with flash attention.")
+        # CommVQ now supports both flash attention and SDPA
         if output_attentions:
             # TODO: Improve this warning with e.g. `model.config.attn_implementation = "manual"` once this is implemented.
             logger.warning_once(
