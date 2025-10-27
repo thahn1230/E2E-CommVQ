@@ -16,7 +16,8 @@ sys.modules['flash_attn.bert_padding'] = None
 sys.modules['flash_attn.flash_attn_interface'] = None
 
 import json
-from commvq.modeling_llama_triton import LlamaForCausalLM
+# Use modeling_llama_training instead of triton version to avoid GLIBC issues
+from commvq.modeling_llama_training import LlamaForCausalLM
 from transformers import AutoTokenizer
 import numpy as np
 import argparse
