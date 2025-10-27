@@ -49,7 +49,8 @@ cd longbench
 
 # Original model
 echo "  [1.1] Evaluating Original CommVQ model..." | tee -a "../${LOG_FILE}"
-python pred.py --model llama > "../${RESULTS_DIR}/longbench_original.log" 2>&1
+echo "        (Progress will be shown in real-time)" | tee -a "../${LOG_FILE}"
+python pred.py --model llama 2>&1 | tee "../${RESULTS_DIR}/longbench_original.log"
 echo "  ✓ Original model done" | tee -a "../${LOG_FILE}"
 
 # E2E model - model2path.json에 추가 필요
@@ -64,12 +65,13 @@ with open('config/model2path.json', 'w') as f:
 EOF
 
 echo "  [1.3] Evaluating E2E model..." | tee -a "../${LOG_FILE}"
-python pred.py --model llama-e2e > "../${RESULTS_DIR}/longbench_e2e.log" 2>&1
+echo "        (Progress will be shown in real-time)" | tee -a "../${LOG_FILE}"
+python pred.py --model llama-e2e 2>&1 | tee "../${RESULTS_DIR}/longbench_e2e.log"
 echo "  ✓ E2E model done" | tee -a "../${LOG_FILE}"
 
 # 결과 평가
 echo "  [1.4] Computing scores..." | tee -a "../${LOG_FILE}"
-python eval.py > "../${RESULTS_DIR}/longbench_scores.txt" 2>&1
+python eval.py 2>&1 | tee "../${RESULTS_DIR}/longbench_scores.txt"
 echo "  ✓ LongBench completed" | tee -a "../${LOG_FILE}"
 echo "" | tee -a "../${LOG_FILE}"
 
@@ -86,24 +88,26 @@ cd niah
 
 # Original model
 echo "  [2.1] Evaluating Original CommVQ model..." | tee -a "../${LOG_FILE}"
+echo "        (Testing context lengths: 32K, 48K, 64K)" | tee -a "../${LOG_FILE}"
 python run_needle_in_haystack.py \
     --model_name "${ORIGINAL_MODEL}" \
     --attn_implementation sdpa \
     --s_len 32000 \
     --e_len 64000 \
     --step 16000 \
-    > "../${RESULTS_DIR}/niah_original.log" 2>&1
+    2>&1 | tee "../${RESULTS_DIR}/niah_original.log"
 echo "  ✓ Original model done" | tee -a "../${LOG_FILE}"
 
 # E2E model
 echo "  [2.2] Evaluating E2E model..." | tee -a "../${LOG_FILE}"
+echo "        (Testing context lengths: 32K, 48K, 64K)" | tee -a "../${LOG_FILE}"
 python run_needle_in_haystack.py \
     --model_name "${E2E_MODEL}" \
     --attn_implementation sdpa \
     --s_len 32000 \
     --e_len 64000 \
     --step 16000 \
-    > "../${RESULTS_DIR}/niah_e2e.log" 2>&1
+    2>&1 | tee "../${RESULTS_DIR}/niah_e2e.log"
 echo "  ✓ E2E model done" | tee -a "../${LOG_FILE}"
 echo "  ✓ NIAH completed" | tee -a "../${LOG_FILE}"
 echo "" | tee -a "../${LOG_FILE}"
@@ -121,18 +125,20 @@ cd memory_measurement
 
 # Original model
 echo "  [3.1] Evaluating Original CommVQ model..." | tee -a "../${LOG_FILE}"
+echo "        (Measuring memory usage and throughput)" | tee -a "../${LOG_FILE}"
 CUDA_VISIBLE_DEVICES=0 python eval_memory.py \
     --model_name "${ORIGINAL_MODEL}" \
     --attn_implementation sdpa \
-    > "../${RESULTS_DIR}/memory_original.log" 2>&1
+    2>&1 | tee "../${RESULTS_DIR}/memory_original.log"
 echo "  ✓ Original model done" | tee -a "../${LOG_FILE}"
 
 # E2E model
 echo "  [3.2] Evaluating E2E model..." | tee -a "../${LOG_FILE}"
+echo "        (Measuring memory usage and throughput)" | tee -a "../${LOG_FILE}"
 CUDA_VISIBLE_DEVICES=0 python eval_memory.py \
     --model_name "${E2E_MODEL}" \
     --attn_implementation sdpa \
-    > "../${RESULTS_DIR}/memory_e2e.log" 2>&1
+    2>&1 | tee "../${RESULTS_DIR}/memory_e2e.log"
 echo "  ✓ E2E model done" | tee -a "../${LOG_FILE}"
 echo "  ✓ Memory Measurement completed" | tee -a "../${LOG_FILE}"
 echo "" | tee -a "../${LOG_FILE}"
@@ -150,24 +156,26 @@ cd infiniteBench/src
 
 # Original model
 echo "  [4.1] Evaluating Original CommVQ model..." | tee -a "../../${LOG_FILE}"
+echo "        (Testing Passkey task: 0-100 samples)" | tee -a "../../${LOG_FILE}"
 CUDA_VISIBLE_DEVICES=0 python eval_commvq.py \
     --model_name original \
     --model_path "${ORIGINAL_MODEL}" \
     --task passkey \
     --start_idx 0 \
     --stop_idx 100 \
-    > "../../${RESULTS_DIR}/infinitebench_original.log" 2>&1
+    2>&1 | tee "../../${RESULTS_DIR}/infinitebench_original.log"
 echo "  ✓ Original model done" | tee -a "../../${LOG_FILE}"
 
 # E2E model
 echo "  [4.2] Evaluating E2E model..." | tee -a "../../${LOG_FILE}"
+echo "        (Testing Passkey task: 0-100 samples)" | tee -a "../../${LOG_FILE}"
 CUDA_VISIBLE_DEVICES=0 python eval_commvq.py \
     --model_name e2e \
     --model_path "${E2E_MODEL}" \
     --task passkey \
     --start_idx 0 \
     --stop_idx 100 \
-    > "../../${RESULTS_DIR}/infinitebench_e2e.log" 2>&1
+    2>&1 | tee "../../${RESULTS_DIR}/infinitebench_e2e.log"
 echo "  ✓ E2E model done" | tee -a "../../${LOG_FILE}"
 echo "  ✓ InfiniteBench completed" | tee -a "../../${LOG_FILE}"
 echo "" | tee -a "../../${LOG_FILE}"

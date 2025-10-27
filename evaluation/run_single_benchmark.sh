@@ -54,11 +54,11 @@ EOF
         MODEL_NAME="llama"
     fi
     
-    echo "  Running pred.py..."
-    python pred.py --model ${MODEL_NAME} > "../${RESULTS_DIR}/longbench.log" 2>&1
+    echo "  Running pred.py (progress shown in real-time)..."
+    python pred.py --model ${MODEL_NAME} 2>&1 | tee "../${RESULTS_DIR}/longbench.log"
     
     echo "  Computing scores..."
-    python eval.py > "../${RESULTS_DIR}/longbench_scores.txt" 2>&1
+    python eval.py 2>&1 | tee "../${RESULTS_DIR}/longbench_scores.txt"
     
     echo "  ✓ LongBench completed"
     echo "  Results: ${RESULTS_DIR}/longbench_scores.txt"
@@ -69,13 +69,14 @@ run_niah() {
     echo "[NIAH] Starting evaluation..."
     cd niah
     
+    echo "  Testing context lengths: 32K, 48K, 64K"
     python run_needle_in_haystack.py \
         --model_name "${MODEL_PATH}" \
         --attn_implementation sdpa \
         --s_len 32000 \
         --e_len 64000 \
         --step 16000 \
-        > "../${RESULTS_DIR}/niah.log" 2>&1
+        2>&1 | tee "../${RESULTS_DIR}/niah.log"
     
     echo "  ✓ NIAH completed"
     echo "  Results: ${RESULTS_DIR}/niah.log"
@@ -86,10 +87,11 @@ run_memory() {
     echo "[Memory] Starting evaluation..."
     cd memory_measurement
     
+    echo "  Measuring memory usage and throughput..."
     CUDA_VISIBLE_DEVICES=0 python eval_memory.py \
         --model_name "${MODEL_PATH}" \
         --attn_implementation sdpa \
-        > "../${RESULTS_DIR}/memory.log" 2>&1
+        2>&1 | tee "../${RESULTS_DIR}/memory.log"
     
     echo "  ✓ Memory Measurement completed"
     echo "  Results: ${RESULTS_DIR}/memory.log"
@@ -100,13 +102,14 @@ run_infinitebench() {
     echo "[InfiniteBench] Starting evaluation (Passkey)..."
     cd infiniteBench/src
     
+    echo "  Testing 100 samples..."
     CUDA_VISIBLE_DEVICES=0 python eval_commvq.py \
         --model_name custom \
         --model_path "${MODEL_PATH}" \
         --task passkey \
         --start_idx 0 \
         --stop_idx 100 \
-        > "../../${RESULTS_DIR}/infinitebench.log" 2>&1
+        2>&1 | tee "../../${RESULTS_DIR}/infinitebench.log"
     
     echo "  ✓ InfiniteBench completed"
     echo "  Results: ${RESULTS_DIR}/infinitebench.log"

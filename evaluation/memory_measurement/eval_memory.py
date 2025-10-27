@@ -30,8 +30,8 @@ import pickle
 
 from tqdm import trange
 import logging
-# ignore all logging
-logging.disable(logging.CRITICAL)
+# ignore all logging except our custom messages
+# logging.disable(logging.CRITICAL)  # Commented out to show progress
 
 
 BATCH_SIZE = 1
@@ -419,6 +419,15 @@ if __name__ == "__main__":
 
     
 
+    print("=" * 60)
+    print("Memory Measurement Evaluation")
+    print("=" * 60)
+    print(f"Model: {args.model_name}")
+    print(f"Attention: {args.attn_implementation}")
+    print("=" * 60)
+    print("")
+    print("Loading model (this may take 1-2 minutes)...")
+    
     ht = LLMNeedleHaystackTester(model_name=args.model_name, 
                                  model_name_suffix=args.model_name_suffix,
                                  model_provider=args.model_provider,
@@ -429,4 +438,7 @@ if __name__ == "__main__":
                                  attn_implementation=args.attn_implementation
                                  )
 
+    print("✓ Model loaded successfully!")
+    print("")
+    print("Starting memory measurement...")
     ht.start_test(args)
