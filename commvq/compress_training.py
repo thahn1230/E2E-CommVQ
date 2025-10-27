@@ -7,7 +7,7 @@ class ValueCompressor(nn.Module):
     def __init__(self, quant_bits, feat_dim):
         super().__init__()
         self.feat_dim = feat_dim
-        self.quant_bits = quant_bits
+        self.quant_bits = int(quant_bits)  # Ensure quant_bits is int
         self.code_bit = 2
         self.code_range = 2 ** self.code_bit
         self.n_e = int(self.feat_dim * self.quant_bits) // self.code_bit
@@ -114,14 +114,14 @@ class KeyCompressor(nn.Module):
         super().__init__()
         self.feat_dim = feat_dim
         self.layer_idx = layer_idx
-        self.quant_bits = quant_bits
+        self.quant_bits = int(quant_bits)  # Ensure quant_bits is int
         self.num_residuals = num_residuals
         self.group_size = group_size
         self.num_groups = feat_dim // group_size  # 1024 // 128 = 8 groups
         
         # Codebook parameters
         # For 12-bit (6+6 bits): 64x64 = 4096 codebook entries per residual
-        self.n_bits_half = quant_bits * 3  # 1-bit: 3, 2-bit: 6
+        self.n_bits_half = self.quant_bits * 3  # 1-bit: 3, 2-bit: 6
         self.codebook_size_half = 2 ** self.n_bits_half  # 1-bit: 8, 2-bit: 64
         self.codebook_size = self.codebook_size_half * self.codebook_size_half  # 1-bit: 64, 2-bit: 4096
         
