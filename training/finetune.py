@@ -1,5 +1,12 @@
 # This code is based on the revised code from fastchat based on tatsu-lab/stanford_alpaca.
 
+# Disable flash_attn to avoid GLIBC_2.32 error on older systems
+import os
+import sys
+os.environ['TRANSFORMERS_NO_ADVISORY_WARNINGS'] = '1'
+sys.modules['flash_attn'] = None
+sys.modules['flash_attn.bert_padding'] = None
+sys.modules['flash_attn.flash_attn_interface'] = None
 
 from dataclasses import dataclass, field
 import json

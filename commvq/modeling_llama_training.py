@@ -18,6 +18,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# Disable flash_attn to avoid GLIBC_2.32 error on older systems
+import os
+import sys
+os.environ['TRANSFORMERS_NO_ADVISORY_WARNINGS'] = '1'
+sys.modules['flash_attn'] = None
+sys.modules['flash_attn.bert_padding'] = None
+sys.modules['flash_attn.flash_attn_interface'] = None
+
 # import matplotlib.pyplot as plt
 import numpy as np
 
