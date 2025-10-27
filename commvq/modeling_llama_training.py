@@ -677,6 +677,7 @@ class LlamaSdpaAttention(LlamaAttention):
         use_cache: bool = False,
         cache_position: Optional[torch.LongTensor] = None,
         position_embeddings: Optional[Tuple[torch.Tensor, torch.Tensor]] = None,  # will become mandatory in v4.46
+        use_vq_loss: bool = False,
         **kwargs,
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor], Optional[Tuple[torch.Tensor]]]:
         # CommVQ now supports both flash attention and SDPA
@@ -702,6 +703,21 @@ class LlamaSdpaAttention(LlamaAttention):
         query_states = self.q_proj(hidden_states)
         key_states = self.k_proj(hidden_states)
         value_states = self.v_proj(hidden_states)
+        
+        # CommVQ: Generate kv_info for VQ loss computation
+        if hasattr(self, "key_vq_model") and self.key_vq_model is not None:
+            value_out = self.value_vq_model.encode(value_states)
+            _value_states = self.value_vq_model.decode(*value_out)
+            _key_states = key_states
+            kv_info = ((key_states, value_states), (_key_states, _value_states))
+        else:
+            kv_info = ((None, None), (None, None))
+            _key_states = None
+            _value_states = None
+        
+        if use_vq_loss:
+            key_states = _key_states
+            value_states = _value_states
 
         query_states = query_states.view(bsz, q_len, self.num_heads, self.head_dim).transpose(1, 2)
         key_states = key_states.view(bsz, q_len, self.num_key_value_heads, self.head_dim).transpose(1, 2)
@@ -756,7 +772,7 @@ class LlamaSdpaAttention(LlamaAttention):
 
         attn_output = self.o_proj(attn_output)
 
-        return attn_output, None, past_key_value
+        return attn_output, None, past_key_value, kv_info
 
 
 LLAMA_ATTENTION_CLASSES = {
