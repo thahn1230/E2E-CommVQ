@@ -92,6 +92,4 @@ torchrun $DISTRIBUTED_ARGS ../finetune.py \
     --use_mse_loss True \
     --use_vq_loss True \
     --is_stage1 True \
-    --quant_bits 1 \
-    --resume_from_checkpoint \
-    --deepspeed ds_config_zero2_cosine.json
+    --quant_bits 1
