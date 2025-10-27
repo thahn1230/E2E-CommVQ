@@ -263,7 +263,10 @@ def train():
     )
     if "output" not in model_args.model_name_or_path:
         if model_args.is_stage1:
-            learnable_scale_values = torch.load("data/learnable_scale.pt", map_location="cpu")["value"]
+            # Get the path to data/learnable_scale.pt relative to finetune.py location
+            script_dir = os.path.dirname(os.path.abspath(__file__))
+            data_path = os.path.join(script_dir, "data", "learnable_scale.pt")
+            learnable_scale_values = torch.load(data_path, map_location="cpu")["value"]
             for i in range(len(model.model.layers)):
                 feat_dim = model.config.hidden_size // model.config.num_attention_heads * model.config.num_key_value_heads
                 key_vq_model = KeyCompressor(feat_dim=feat_dim, layer_idx=i, quant_bits=config.quant_bits)
