@@ -17,8 +17,21 @@ set -e  # 오류 발생 시 중단
 # ============================================================
 
 # 모델 경로
-ORIGINAL_MODEL=${1:-"meta-llama/Llama-3.1-8B-Instruct"}
-E2E_MODEL=${2:-"../training/finetune/output/llama3.1_8b_int1"}
+ORIGINAL_MODEL_INPUT=${1:-"meta-llama/Llama-3.1-8B-Instruct"}
+E2E_MODEL_INPUT=${2:-"../training/finetune/output/llama3.1_8b_int1"}
+
+# Convert relative paths to absolute paths if needed
+if [[ "${ORIGINAL_MODEL_INPUT}" == ../* ]] || [[ "${ORIGINAL_MODEL_INPUT}" == ./* ]]; then
+    ORIGINAL_MODEL=$(cd "$(dirname "${ORIGINAL_MODEL_INPUT}")" && pwd)/$(basename "${ORIGINAL_MODEL_INPUT}")
+else
+    ORIGINAL_MODEL="${ORIGINAL_MODEL_INPUT}"
+fi
+
+if [[ "${E2E_MODEL_INPUT}" == ../* ]] || [[ "${E2E_MODEL_INPUT}" == ./* ]]; then
+    E2E_MODEL=$(cd "$(dirname "${E2E_MODEL_INPUT}")" && pwd)/$(basename "${E2E_MODEL_INPUT}")
+else
+    E2E_MODEL="${E2E_MODEL_INPUT}"
+fi
 
 # 결과 저장 디렉토리
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)

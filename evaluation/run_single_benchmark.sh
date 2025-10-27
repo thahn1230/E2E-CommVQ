@@ -21,7 +21,15 @@
 set -e
 
 BENCHMARK=${1:-"all"}
-MODEL_PATH=${2:-"meta-llama/Llama-3.1-8B-Instruct"}
+MODEL_PATH_INPUT=${2:-"meta-llama/Llama-3.1-8B-Instruct"}
+
+# Convert relative path to absolute path if needed
+if [[ "${MODEL_PATH_INPUT}" == ../* ]] || [[ "${MODEL_PATH_INPUT}" == ./* ]]; then
+    MODEL_PATH=$(cd "$(dirname "${MODEL_PATH_INPUT}")" && pwd)/$(basename "${MODEL_PATH_INPUT}")
+    echo "Converted to absolute path: ${MODEL_PATH}"
+else
+    MODEL_PATH="${MODEL_PATH_INPUT}"
+fi
 
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 RESULTS_DIR="results_${BENCHMARK}_${TIMESTAMP}"
