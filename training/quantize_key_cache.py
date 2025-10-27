@@ -325,9 +325,9 @@ if __name__ == "__main__":
     parser.add_argument('layer_idx', type=int, nargs='?', default=0, help='Layer index to train')
     parser.add_argument('--training_method', type=str, default='em', choices=['em', 'e2e'],
                        help='Training method: em (Expectation-Maximization) or e2e (End-to-End)')
-    parser.add_argument('--epochs', type=int, default=100, help='Number of epochs for E2E training')
+    parser.add_argument('--epochs', type=int, default=50, help='Number of epochs for E2E training (default: 50)')
     parser.add_argument('--lr', type=float, default=0.001, help='Learning rate for E2E training')
-    parser.add_argument('--batch_size', type=int, default=256, help='Batch size for E2E training')
+    parser.add_argument('--batch_size', type=int, default=512, help='Batch size for E2E training (default: 512, faster than 128/256)')
     parser.add_argument('--max_samples', type=int, default=None, 
                        help='Maximum number of samples to use (default: all available)')
     
@@ -348,10 +348,20 @@ if __name__ == "__main__":
     all_tensors = torch.cat(all_tensors, dim=1).squeeze().float()
     
     # Prepare data
-    N = min(256 * CLUSTERING_CENTER_NUM, all_tensors.shape[0])
+    # Default: use reasonable subset for E2E training
+    if args.training_method == 'e2e':
+        # E2E: 50K samples is sufficient (much faster)
+        default_max = 50000
+    else:
+        # EM: use full dataset
+        default_max = 256 * CLUSTERING_CENTER_NUM
+    
+    N = min(default_max, all_tensors.shape[0])
     if args.max_samples is not None:
         N = min(N, args.max_samples)
         print(f"Using max_samples limit: {N}")
+    
+    print(f"Training on {N} samples")
     all_tensors = all_tensors[:N].cuda()
     all_tensors = all_tensors.view(N, 8, 2, 64).transpose(2, 3).flatten(1)
     tensors_norm = all_tensors.norm(dim=1, keepdim=True)
