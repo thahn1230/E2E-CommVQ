@@ -259,7 +259,7 @@ def train():
         model_args.model_name_or_path,
         config=config,
         torch_dtype=torch.bfloat16,
-        attn_implementation="flash_attention_2",
+        attn_implementation="sdpa",  # Use SDPA instead of flash_attention_2 for GLIBC compatibility
     )
     if "output" not in model_args.model_name_or_path:
         if model_args.is_stage1:
