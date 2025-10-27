@@ -66,7 +66,7 @@ DISTRIBUTED_ARGS="
     --master_port $MASTER_PORT
 "
 
-torchrun $DISTRIBUTED_ARGS finetune.py \
+torchrun $DISTRIBUTED_ARGS ../finetune.py \
     --model_name_or_path $MODEL \
     --data_path $DATA \
     --bf16 True \
@@ -84,7 +84,7 @@ torchrun $DISTRIBUTED_ARGS finetune.py \
     --warmup_steps 100 \
     --lr_scheduler_type "cosine" \
     --logging_steps 10 \
-    --report_to wandb \
+    --report_to none \
     --max_seq_length 8192 \
     --packing True \
     --max_steps 100000 \
@@ -94,4 +94,4 @@ torchrun $DISTRIBUTED_ARGS finetune.py \
     --is_stage1 True \
     --quant_bits 1 \
     --resume_from_checkpoint \
-    --deepspeed finetune/ds_config_zero2_cosine.json
+    --deepspeed ds_config_zero2_cosine.json
